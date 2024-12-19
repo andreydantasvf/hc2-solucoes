@@ -98,7 +98,10 @@ export default function DistribuidorDeLitros() {
     ): number => {
       // Volume mínimo de 6L por abastecimento
       const quantidade = Math.min(
-        randomValue(6, veiculo.capacidadeTanque * 0.5),
+        randomValue(
+          veiculo.capacidadeTanque - veiculo.capacidadeTanque * 0.2,
+          veiculo.capacidadeTanque
+        ),
         combustivelDisponivel
       );
       return quantidade >= 6 ? quantidade : 0; // Garantir mínimo de 6L
