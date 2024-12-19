@@ -76,7 +76,52 @@ export default function DistribuidorDeLitros() {
     name: 'veiculos'
   });
 
+  function checarSePodeDistribuir(data: DistribuidorDeLitrosForm) {
+    const {
+      veiculos,
+      gasolina = 0,
+      etanol = 0,
+      dieselComum = 0,
+      dieselS10 = 0,
+      diasDoMes
+    } = data;
+
+    const veiculosGasolinaTotalTanque = veiculos
+      .filter(({ tipoCombustivel }) => tipoCombustivel === 'gasolina')
+      .map((v) => ({ ...v, capacidadeTanque: v.capacidadeTanque * diasDoMes }))
+      .reduce((acc, { capacidadeTanque }) => acc + capacidadeTanque, 0);
+    const veiculosEtanolTotalTanque = veiculos
+      .filter(({ tipoCombustivel }) => tipoCombustivel === 'etanol')
+      .map((v) => ({ ...v, capacidadeTanque: v.capacidadeTanque * diasDoMes }))
+      .reduce((acc, { capacidadeTanque }) => acc + capacidadeTanque, 0);
+    const veiculosDieselComumTotalTanque = veiculos
+      .filter(({ tipoCombustivel }) => tipoCombustivel === 'dieselComum')
+      .map((v) => ({ ...v, capacidadeTanque: v.capacidadeTanque * diasDoMes }))
+      .reduce((acc, { capacidadeTanque }) => acc + capacidadeTanque, 0);
+    const veiculosDieselS10TotalTanque = veiculos
+      .filter(({ tipoCombustivel }) => tipoCombustivel === 'dieselS10')
+      .map((v) => ({ ...v, capacidadeTanque: v.capacidadeTanque * diasDoMes }))
+      .reduce((acc, { capacidadeTanque }) => acc + capacidadeTanque, 0);
+
+    if (
+      gasolina > veiculosGasolinaTotalTanque ||
+      etanol > veiculosEtanolTotalTanque ||
+      dieselComum > veiculosDieselComumTotalTanque ||
+      dieselS10 > veiculosDieselS10TotalTanque
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
   function handleGenerateData(data: DistribuidorDeLitrosForm) {
+    if (!checarSePodeDistribuir(data)) {
+      return alert(
+        'A quantidade de combustível para distribuir é maior que a quantidade para abastecer todos os veículos no número de dias escolhido.'
+      );
+    }
+
     const {
       veiculos,
       gasolina = 0,
@@ -96,15 +141,18 @@ export default function DistribuidorDeLitros() {
       veiculo: Veiculo,
       combustivelDisponivel: number
     ): number => {
-      // Volume mínimo de 6L por abastecimento
+      // Volume mínimo de 20% do tanque por abastecimento
       const quantidade = Math.min(
         randomValue(
           veiculo.capacidadeTanque - veiculo.capacidadeTanque * 0.2,
-          veiculo.capacidadeTanque
+          veiculo.capacidadeTanque - veiculo.capacidadeTanque * 0.01
         ),
         combustivelDisponivel
       );
-      return quantidade >= 6 ? quantidade : 0; // Garantir mínimo de 6L
+      return quantidade >=
+        veiculo.capacidadeTanque - veiculo.capacidadeTanque * 0.2
+        ? quantidade
+        : 0;
     };
 
     // Inicializa o array que armazenará os dados de distribuição
@@ -177,21 +225,40 @@ export default function DistribuidorDeLitros() {
     // Redistribuir combustível remanescente (aplica regras mínimas também)
     const distribuirCombustivelRestante = (tipo: keyof typeof combustiveis) => {
       while (combustiveis[tipo] > 0) {
+        let distribuido = false;
+
         const veiculoAleatorio =
           veiculos[Math.floor(Math.random() * veiculos.length)];
         const diaAleatorio = Math.floor(Math.random() * diasDoMes);
-        const quantidade = distribuirCombustivel(
-          veiculoAleatorio,
-          combustiveis[tipo]
+
+        const veiculoDistribuicao = distribuicao[diaAleatorio].veiculos.find(
+          (v) => v.placa === veiculoAleatorio.placa
         );
-        combustiveis[tipo] -= quantidade;
-        if (quantidade > 0) {
-          const veiculoDistribuicao = distribuicao[diaAleatorio].veiculos.find(
-            (v) => v.placa === veiculoAleatorio.placa
+
+        if (veiculoDistribuicao) {
+          // Quantidade já abastecida no dia
+          const quantidadeAtual = veiculoDistribuicao.quantidade;
+
+          // Quantidade máxima que ainda pode ser abastecida para este veículo
+          const quantidadeMaximaDisponivel =
+            veiculoAleatorio.capacidadeTanque - quantidadeAtual;
+
+          // Distribuir o mínimo possível entre o combustível restante e a capacidade disponível
+          const quantidade = Math.min(
+            combustiveis[tipo],
+            quantidadeMaximaDisponivel
           );
-          if (veiculoDistribuicao) {
+
+          if (quantidade > 0) {
+            combustiveis[tipo] -= quantidade;
             veiculoDistribuicao.quantidade += quantidade;
+            distribuido = true;
           }
+        }
+
+        // Se nenhum combustível foi distribuído em uma iteração, interrompa para evitar loop infinito
+        if (!distribuido) {
+          break;
         }
       }
     };
